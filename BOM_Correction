@@ -1,0 +1,688 @@
+import os
+import re
+from turtle import done
+import pandas as pd
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+import threading
+from datetime import datetime
+
+# =====================================================
+# READ EXCEL FILE
+# =====================================================
+def read_excel_file(path):
+    print(f"Reading file: {path}")
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".xlsx":
+        print("Reading as .xlsx")
+        return pd.read_excel(path, engine="openpyxl")
+    elif ext == ".xls":
+        print("Reading as .xls")
+        import xlwings as xw
+        app = xw.App(visible=False)
+        wb  = app.books.open(path)
+        data = wb.sheets[0].used_range.value
+        wb.close(); app.quit()
+        return pd.DataFrame(data[1:], columns=data[0])
+    else:
+        raise ValueError("Unsupported format. Use .xls or .xlsx")
+
+
+# =====================================================
+# GENERATE HIERARCHY & LEVEL
+#   • Row order NEVER changed
+#   • Level starts from 1
+# =====================================================
+def generate_hierarchy_level(df):
+    print("\n" + "-"*50)
+    print("STEP 0 ─ GENERATING HIERARCHY & LEVEL")
+    print("-"*50)
+
+    df = df.copy()
+    df['Part Code'] = df['Part Code'].fillna('').astype(str)
+
+    # Leading spaces ÷ 2 = raw depth  →  shift so minimum = 1
+    raw_depths = df['Part Code'].apply(lambda x: (len(x) - len(x.lstrip())) // 2)
+    min_depth  = raw_depths.min()
+    df['Level'] = (raw_depths - min_depth + 1).astype(int)
+
+    # Build hierarchy numbers walking rows in their ORIGINAL order
+    counters = {}
+    hierarchy_list = []
+    for _, row in df.iterrows():
+        lv = row['Level']
+        # Reset counters for any level deeper than current
+        for k in list(counters.keys()):
+            if k > lv:
+                del counters[k]
+        counters[lv] = counters.get(lv, 0) + 1
+        hierarchy_list.append(".".join(str(counters.get(l, 1)) for l in range(1, lv + 1)))
+
+    df['Hierarchy'] = hierarchy_list
+
+    # Diagnostic
+    print("Level distribution:")
+    for lv, cnt in df['Level'].value_counts().sort_index().items():
+        print(f"  Level {lv}: {cnt} rows")
+    print(f"\nFirst 15 rows (Part Code → Level → Hierarchy):")
+    print(f"  {'Part Code (stripped)':<32} {'Level':<6} Hierarchy")
+    print("  " + "-"*55)
+    for _, row in df.head(15).iterrows():
+        print(f"  '{row['Part Code'].strip():<30}' {row['Level']:<6} {row['Hierarchy']}")
+
+    return df
+
+
+# =====================================================
+# EXTRACT THICKNESS FROM PART CODE
+#   Only for codes starting with BE or FL
+#   Pattern: T<number>  →  e.g. BE-MS-T1.6-39845 → 1.6
+#                           FL-GI-T3-6109        → 3.0
+# =====================================================
+def extract_thickness_from_partcode(part_code):
+    code = str(part_code).strip().upper()
+    if not (code.startswith("BE") or code.startswith("FL")):
+        return None
+    match = re.search(r'[_\-]T(\d+\.?\d*)(?:[_\-]|$)', code)
+    if not match:
+        # fallback: any T<number> anywhere
+        match = re.search(r'T(\d+\.?\d*)', code)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+    return None
+
+
+# =====================================================
+# HELPER — check if all non-excluded columns are empty
+# =====================================================
+def are_other_columns_empty(row, exclude_columns):
+    for col in row.index:
+        if col in exclude_columns:
+            continue
+        v = row[col]
+        if pd.isna(v):
+            continue
+        if str(v).strip() == '':
+            continue
+        try:
+            if float(v) == 0:
+                continue
+        except (ValueError, TypeError):
+            pass
+        return False
+    return True
+
+
+# =====================================================
+# MAIN PROCESSING
+# =====================================================
+def process_file(file_path, project_code, designer, revision, project_qty,
+                 progress_bar, root_window, status_label):
+    try:
+        def upd(msg, pct):
+            status_label.config(text=msg)
+            progress_bar["value"] = pct
+            root_window.update()
+
+        print("\n" + "="*60)
+        print("  BOM COMBINED PROCESSOR  v2.0")
+        print("="*60)
+
+        upd("Reading file …", 5)
+
+        # ── READ ────────────────────────────────────────────
+        df = read_excel_file(file_path)
+        original_columns   = list(df.columns)      # capture original column order
+        original_row_count = len(df)
+        print(f"\n✓ Loaded | Rows: {original_row_count} | Cols: {original_columns}")
+
+        # ── STEP 0  HIERARCHY & LEVEL ────────────────────────
+        upd("Generating hierarchy …", 10)
+        df = generate_hierarchy_level(df)
+        # Row order is untouched — no sort done
+
+        # ── BASIC CLEANING ───────────────────────────────────
+        upd("Cleaning data …", 18)
+        df['Description']       = df['Description'].fillna('').astype(str).str.strip()
+        df['Thickness (mm)']    = pd.to_numeric(df['Thickness (mm)'],    errors='coerce')
+        df['Total Weight (kg)'] = pd.to_numeric(df['Total Weight (kg)'], errors='coerce').fillna(0)
+        df['Unit Qty']          = pd.to_numeric(df['Unit Qty'],          errors='coerce').fillna(0)
+        if 'Material'  in df.columns:
+            df['Material']  = df['Material'].fillna('').astype(str).str.strip()
+        if 'Part Name' in df.columns:
+            df['Description'] = df.apply(
+                lambda r: r['Part Name'] if r['Description'] == '' else r['Description'], axis=1)
+        print("✓ Data cleaned")
+
+        # ── STEP 1 & 2  SHEET ROWS ──────────────────────────
+        upd("Processing Sheet rows & thickness …", 25)
+        print("\n" + "="*60)
+        print("STEP 1-2 ─ SHEET ROWS: MOVE THICKNESS → DELETE")
+        print("="*60)
+
+        # Build a positional list so we can look up the integer position
+        # of any dataframe index value  (needed for idx-1 logic that is
+        # robust even after resets)
+        sheet_mask = df['Description'].str.lower() == 'sheet'
+        sheet_idxs = df.index[sheet_mask].tolist()
+        print(f"Found {len(sheet_idxs)} rows with Description = 'Sheet'")
+
+        moved_count = 0
+        warnings    = []
+
+        for idx in sheet_idxs:
+            row = df.loc[idx]
+            thickness = row['Thickness (mm)']
+
+            # --- Resolve thickness: cell value first, then Part Code ---
+            if pd.isna(thickness) or thickness <= 0:
+                extracted = extract_thickness_from_partcode(row['Part Code'])
+                if extracted:
+                    thickness = extracted
+                    print(f"  → Thickness {extracted} extracted from Part Code "
+                          f"'{row['Part Code'].strip()}' (Sheet row {row['Hierarchy']})")
+
+            if pd.notna(thickness) and thickness > 0:
+                # Find positional row above in the dataframe (index-safe)
+                pos = df.index.get_loc(idx)
+                if pos > 0:
+                    upper_idx = df.index[pos - 1]
+                    upper_val = df.at[upper_idx, 'Thickness (mm)']
+
+                    if pd.isna(upper_val) or upper_val == 0:
+                        df.at[upper_idx, 'Thickness (mm)'] = thickness
+                        moved_count += 1
+                        upper_h = df.at[upper_idx, 'Hierarchy']
+                        print(f"  ✓ Moved thickness {thickness}  "
+                              f"{row['Hierarchy']} → {upper_h} (row above)")
+
+                        # Warn if row-above ≠ true hierarchy parent
+                        parts = str(row['Hierarchy']).split(".")
+                        if len(parts) > 1:
+                            true_parent = ".".join(parts[:-1])
+                            if str(upper_h).strip() != str(true_parent).strip():
+                                msg = (f"⚠ HIERARCHY MISMATCH  Sheet {row['Hierarchy']} — "
+                                       f"row above = '{upper_h}', "
+                                       f"true parent = '{true_parent}'")
+                                print(f"  {msg}")
+                                warnings.append(msg)
+                    else:
+                        print(f"  Row above ({df.at[upper_idx,'Hierarchy']}) "
+                              f"already has thickness {upper_val}. Skipping overwrite.")
+                else:
+                    print(f"  ✗ Sheet row {row['Hierarchy']} is first row — cannot move up.")
+            else:
+                print(f"  - Sheet row {row['Hierarchy']}: no thickness in cell or Part Code.")
+
+        # Auto-fill thickness from Part Code for ALL BE/FL rows still missing thickness
+        for idx in df.index:
+            row = df.loc[idx]
+            if pd.isna(row['Thickness (mm)']) or row['Thickness (mm)'] == 0:
+                extracted = extract_thickness_from_partcode(row['Part Code'])
+                if extracted:
+                    df.at[idx, 'Thickness (mm)'] = extracted
+                    print(f"  → Auto-filled thickness {extracted} from "
+                          f"Part Code '{row['Part Code'].strip()}'")
+
+        print(f"\n✓ Thickness values moved: {moved_count}")
+        if warnings:
+            print(f"{'='*60}")
+            print(f"⚠ {len(warnings)} HIERARCHY MISMATCH(ES):")
+            for w in warnings:
+                print(f"  {w}")
+            print(f"{'='*60}")
+
+        # Delete Sheet rows where Total Weight = 0
+        upd("Deleting Sheet rows …", 38)
+        sheet_del = (df['Description'].str.lower() == 'sheet') & (df['Total Weight (kg)'] == 0)
+        sheet_rows_count = sheet_del.sum()
+        df = df[~sheet_del].reset_index(drop=True)
+        print(f"✓ Deleted {sheet_rows_count} Sheet rows (Total Weight = 0)")
+
+        # ── STEP 3  EMPTY PART CODE ──────────────────────────
+        upd("Removing empty Part Code rows …", 48)
+        print("\n" + "="*60)
+        print("STEP 3 ─ DELETE EMPTY PART CODE ROWS")
+        print("="*60)
+        empty_pc = df['Part Code'].astype(str).str.strip() == ''
+        empty_pc_count = empty_pc.sum()
+        if empty_pc_count:
+            df = df[~empty_pc].reset_index(drop=True)
+        print(f"✓ Deleted {empty_pc_count} empty Part Code rows")
+
+        # ── STEP 4  PARTIAL DATA ─────────────────────────────
+        upd("Removing partial data rows …", 55)
+        print("\n" + "="*60)
+        print("STEP 4 ─ DELETE PARTIAL DATA ROWS (Total Weight = 0)")
+        print("="*60)
+        key_cols     = ['Description', 'Unit Qty'] + (['Material'] if 'Material' in df.columns else [])
+        exclude_cols = key_cols + ['Total Weight (kg)']
+        to_del = []
+        for idx, row in df.iterrows():
+            if row['Total Weight (kg)'] != 0:
+                continue
+            has_data = any(
+                col in df.columns
+                and pd.notna(row[col])
+                and str(row[col]).strip() not in ('', '0')
+                and row[col] != 0
+                for col in key_cols
+            )
+            if has_data and are_other_columns_empty(row, exclude_cols):
+                to_del.append(idx)
+        partial_count = len(to_del)
+        if partial_count:
+            df = df.drop(to_del).reset_index(drop=True)
+        print(f"✓ Deleted {partial_count} partial data rows")
+
+        # ── STEP 5  QTY EXPLOSION ────────────────────────────
+        upd("Exploding quantities …", 62)
+        print("\n" + "="*60)
+        print("STEP 5 ─ QTY EXPLOSION THROUGH HIERARCHY")
+        print("="*60)
+        # Walk rows in their current (original) order — parents always appear before children
+        qty_map = {}
+        for idx, row in df.iterrows():
+            h = str(row['Hierarchy'])
+            q = float(row['Unit Qty'])
+            if '.' in h:
+                parent_h   = h.rsplit('.', 1)[0]
+                parent_qty = qty_map.get(parent_h, 1.0)
+                q = q * parent_qty
+            qty_map[h] = q
+            df.at[idx, 'Unit Qty'] = round(q, 3)
+
+        df['Total Qty'] = (df['Unit Qty'] * project_qty).round(3)
+        if 'Unit Weight (kg)' in df.columns:
+            df['Unit Weight (kg)'] = pd.to_numeric(df['Unit Weight (kg)'], errors='coerce')
+            df['Total Weight (kg)'] = (df['Total Qty'] * df['Unit Weight (kg)'].fillna(0)).round(3)
+        print(f"✓ Qty explosion complete | Project Qty = {project_qty}")
+
+        # ── STEP 6  PROCESS ASSIGNMENT ───────────────────────
+        upd("Assigning processes …", 72)
+        print("\n" + "="*60)
+        print("STEP 6 ─ PROCESS ASSIGNMENT")
+        print("="*60)
+        df['Process 1'] = '-'
+        df['Process 2'] = '-'
+        for idx, row in df.iterrows():
+            code = str(row['Part Code']).strip().upper()
+            if   code.startswith('FL'):
+                df.at[idx, 'Process 1'] = 'Laser Cutting'
+            elif code.startswith('BE'):
+                df.at[idx, 'Process 1'] = 'Laser Cutting'
+                df.at[idx, 'Process 2'] = 'Bending'
+            elif code.startswith('PL'):
+                df.at[idx, 'Process 1'] = 'Plasma Cutting'
+            elif code.startswith('SAW'):
+                df.at[idx, 'Process 1'] = 'Saw Cutting'
+        process_count = len(df[df['Process 1'] != '-'])
+        print(f"✓ Process assigned to {process_count} rows")
+
+        # ── COLUMN ORDER ─────────────────────────────────────
+        upd("Arranging columns …", 80)
+        # Rule:
+        #   1. Hierarchy, Level  → always first (new cols prepended)
+        #   2. All original columns in original order
+        #   3. New cols added by this tool (Total Qty, Process 1, Process 2) → appended at end
+        new_appended = ['Total Qty', 'Process 1', 'Process 2']
+        front  = ['Hierarchy', 'Level']
+        middle = [c for c in original_columns if c in df.columns]   # preserves original order
+        tail   = [c for c in new_appended if c in df.columns and c not in middle]
+        df = df[[c for c in (front + middle + tail) if c in df.columns]]
+
+        # ── SAVE ─────────────────────────────────────────────
+        upd("Saving output …", 87)
+        final_row_count = len(df)
+        total_deleted   = original_row_count - final_row_count
+
+        print("\n" + "="*60)
+        print("SUMMARY")
+        print("="*60)
+        print(f"  Original rows       : {original_row_count}")
+        print(f"  Thickness moved     : {moved_count}")
+        print(f"  Sheet rows deleted  : {sheet_rows_count}")
+        print(f"  Empty PC deleted    : {empty_pc_count}")
+        print(f"  Partial deleted     : {partial_count}")
+        print(f"  Total deleted       : {total_deleted}")
+        print(f"  Final rows          : {final_row_count}")
+        print(f"  Process assigned    : {process_count}")
+        if warnings:
+            print(f"\n  ⚠ Hierarchy mismatches: {len(warnings)}")
+
+        base_name   = os.path.splitext(file_path)[0]
+        output_path = f"{base_name}_BOM_Output.xlsx"
+
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils  import get_column_letter
+
+        COL_NAVY   = "1B2A4A"
+        COL_TEAL   = "1E6E6E"
+        COL_ACCENT = "E8A838"
+        COL_WHITE  = "FFFFFF"
+        COL_LIGHT  = "F0F4F8"
+        COL_WARN   = "C0392B"
+        COL_ALT    = "EEF2F7"
+
+        def mk_font(bold=False, sz=10, color="000000"):
+            return Font(bold=bold, size=sz, color=color, name="Montserrat")
+        def mk_fill(hex_col):
+            return PatternFill(start_color=hex_col, end_color=hex_col, fill_type="solid")
+        thin   = Side(style='thin', color="CCCCCC")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, startrow=6, sheet_name='BOM')
+            ws = writer.sheets['BOM']
+            n_cols = len(df.columns)
+
+            # Row 1 — Title bar
+            ws['A1'] = "  BOM GENERATION REPORT"
+            ws['A1'].font      = Font(bold=True, size=14, color=COL_WHITE, name="Montserrat")
+            ws['A1'].fill      = mk_fill(COL_NAVY)
+            ws['A1'].alignment = Alignment(vertical='center')
+            ws.row_dimensions[1].height = 30
+            for c in range(2, n_cols + 1):
+                ws.cell(row=1, column=c).fill = mk_fill(COL_NAVY)
+
+            # Rows 2-5 — Metadata
+            meta = [
+                [("Project Code", project_code),        ("Designer",    designer)],
+                [("Revision",     revision),             ("Project Qty", project_qty)],
+                [("Generated",    datetime.today().strftime("%d-%m-%Y")),
+                 ("Source File",  os.path.basename(file_path))],
+                [("Original Rows", original_row_count),  ("Final Rows",  final_row_count)],
+            ]
+            for r_i, pairs in enumerate(meta, start=2):
+                ws.row_dimensions[r_i].height = 18
+                for c_off, (lbl, val) in enumerate(pairs):
+                    cl = 1 + c_off * 2
+                    cv = cl + 1
+                    lc = ws.cell(row=r_i, column=cl, value=lbl)
+                    vc = ws.cell(row=r_i, column=cv, value=val)
+                    lc.font  = mk_font(bold=True, sz=9, color=COL_WHITE)
+                    lc.fill  = mk_fill(COL_TEAL)
+                    lc.alignment = Alignment(horizontal='right', vertical='center', indent=1)
+                    lc.border = border
+                    vc.font  = mk_font(sz=9)
+                    vc.fill  = mk_fill(COL_LIGHT)
+                    vc.alignment = Alignment(horizontal='left', vertical='center', indent=1)
+                    vc.border = border
+
+            if warnings:
+                wc = ws.cell(row=5, column=5,
+                             value=f"⚠ {len(warnings)} Hierarchy Warning(s) — see terminal")
+                wc.font      = Font(bold=True, sz=9, color=COL_WHITE, name="Montserrat")
+                wc.fill      = mk_fill(COL_WARN)
+                wc.alignment = Alignment(horizontal='center', vertical='center')
+
+            # Row 6 — spacer
+            ws.row_dimensions[6].height = 6
+
+            # Row 7 — Column headers
+            ws.row_dimensions[7].height = 24
+            for ci in range(1, n_cols + 1):
+                c = ws.cell(row=7, column=ci)
+                c.fill      = mk_fill(COL_NAVY)
+                c.font      = Font(bold=True, size=10, color=COL_WHITE, name="Montserrat")
+                c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                c.border    = border
+
+            # Data rows — alternating fill
+            for ri in range(8, 8 + final_row_count):
+                fill_hex = COL_WHITE if (ri % 2 == 0) else COL_ALT
+                for ci in range(1, n_cols + 1):
+                    c = ws.cell(row=ri, column=ci)
+                    c.fill      = mk_fill(fill_hex)
+                    c.font      = Font(size=9, name="Montserrat")
+                    c.border    = border
+                    c.alignment = Alignment(vertical='center')
+
+            # Column widths
+            width_map = {
+                'Hierarchy':        13, 'Level':            7,
+                'Part Code':        24, 'Description':     36,
+                'Unit Qty':         10, 'Total Qty':       10,
+                'Unit Weight (kg)': 16, 'Thickness (mm)':  14,
+                'Total Weight (kg)':16, 'Process 1':       18,
+                'Process 2':        14,
+            }
+            for ci, col_name in enumerate(df.columns, start=1):
+                letter = get_column_letter(ci)
+                ws.column_dimensions[letter].width = width_map.get(col_name, 16)
+
+            # Freeze panes at first data row
+            ws.freeze_panes = ws.cell(row=8, column=1)
+
+        upd("Done!", 100)
+        print(f"\n✓ Saved → {output_path}")
+        print("="*60)
+        print("  PROCESS COMPLETED SUCCESSFULLY!")
+        print("="*60)
+
+        warn_txt = ""
+        if warnings:
+            warn_txt = f"\n\n⚠ {len(warnings)} Hierarchy Mismatch(es):\n"
+            warn_txt += "\n".join(f"  {w}" for w in warnings)
+
+        messagebox.showinfo(
+            "Success",
+            f"Process completed!\n\n"
+            f"Summary\n"
+            f"{'─'*34}\n"
+            f"  Original rows        : {original_row_count}\n"
+            f"  Thickness moved      : {moved_count}\n"
+            f"  Sheet rows deleted   : {sheet_rows_count}\n"
+            f"  Empty PC deleted     : {empty_pc_count}\n"
+            f"  Partial rows deleted : {partial_count}\n"
+            f"  Process assigned     : {process_count}\n"
+            f"  Final rows           : {final_row_count}\n\n"
+            f"Saved as:\n  {os.path.basename(output_path)}"
+            + warn_txt
+        )
+
+    except Exception as e:
+        progress_bar["value"] = 0
+        status_label.config(text="❌  Error — check terminal")
+        print(f"\n❌ ERROR: {e}")
+        import traceback; traceback.print_exc()
+        messagebox.showerror("Error", f"An error occurred:\n\n{e}")
+
+
+# =====================================================
+# GUI
+# =====================================================
+def create_gui():
+    NAVY   = "#1B2A4A"
+    TEAL   = "#1E6E6E"
+    ACCENT = "#E8A838"
+    BG     = "#F0F4F8"
+    WHITE  = "#FFFFFF"
+    GREY   = "#7A8A99"
+    DARK   = "#2C3E50"
+
+    root = tk.Tk()
+    root.title("BOM Combined Processor  v2.0")
+    root.configure(bg=BG)
+    root.geometry("720x680")
+    root.resizable(False, False)
+    root.lift()
+    root.attributes('-topmost', True)
+    root.after(1200, lambda: root.attributes('-topmost', False))
+
+    # ── HEADER ──────────────────────────────────────────
+    hdr = tk.Frame(root, bg=NAVY, height=72)
+    hdr.pack(fill=tk.X)
+    hdr.pack_propagate(False)
+
+    tk.Label(hdr, text="BOM Combined Processor",
+             font=("Montserrat", 18, "bold"), bg=NAVY, fg=WHITE
+             ).pack(side=tk.LEFT, padx=22, pady=16)
+    tk.Label(hdr, text="v2.0",
+             font=("Montserrat", 10), bg=NAVY, fg=ACCENT
+             ).pack(side=tk.LEFT, pady=22)
+
+    # ── BODY ────────────────────────────────────────────
+    body = tk.Frame(root, bg=BG)
+    body.pack(fill=tk.BOTH, expand=True, padx=22, pady=14)
+
+    # ── STEPS PANEL ─────────────────────────────────────
+    sf = tk.LabelFrame(body, text="  Processing Steps  ",
+                       bg=BG, fg=TEAL,
+                       font=("Montserrat", 9, "bold"),
+                       bd=1, relief=tk.GROOVE, padx=8, pady=6)
+    sf.pack(fill=tk.X, pady=(0, 10))
+
+    steps = [
+        ("0", "Generate Hierarchy & Level from Part Code indentation"),
+        ("1", "Move Thickness from Sheet rows to row above  (warns if mismatch)"),
+        ("2", "Auto-fill Thickness from Part Code -- BE/FL: value after 'T'  e.g. BE-MS-T1.6 -> 1.6"),
+        ("3", "Delete Sheet rows  |  Delete empty Part Code rows"),
+        ("4", "Delete partial data rows where Total Weight = 0"),
+        ("5", "Qty Explosion — multiply quantities down through hierarchy"),
+        ("6", "Process Assignment: FL=Laser  BE=Laser+Bend  PL=Plasma  SAW=Saw"),
+    ]
+    for num, text in steps:
+        rf = tk.Frame(sf, bg=BG)
+        rf.pack(fill=tk.X, pady=1)
+        tk.Label(rf, text=f" {num} ", bg=TEAL, fg=WHITE,
+                 font=("Montserrat", 8, "bold")).pack(side=tk.LEFT, padx=(0, 7))
+        tk.Label(rf, text=text, bg=BG, fg=DARK,
+                 font=("Montserrat", 9), anchor='w').pack(side=tk.LEFT)
+
+    # ── FILE SELECTION ───────────────────────────────────
+    ff = tk.LabelFrame(body, text="  Input File  ",
+                       bg=BG, fg=TEAL,
+                       font=("Montserrat", 9, "bold"),
+                       bd=1, relief=tk.GROOVE, padx=10, pady=8)
+    ff.pack(fill=tk.X, pady=(0, 10))
+
+    fi = tk.Frame(ff, bg=BG)
+    fi.pack(fill=tk.X)
+
+    file_entry = tk.Entry(fi, width=62, font=("Montserrat", 9),
+                          bg=WHITE, relief=tk.FLAT,
+                          highlightthickness=1, highlightbackground="#CCCCCC")
+    file_entry.pack(side=tk.LEFT, padx=(0, 8), ipady=5)
+
+    def browse():
+        fn = filedialog.askopenfilename(
+            title="Select BOM Excel File",
+            filetypes=[("Excel Files", "*.xlsx *.xls"), ("All Files", "*.*")])
+        if fn:
+            file_entry.delete(0, tk.END)
+            file_entry.insert(0, fn)
+
+    brbtn = tk.Button(fi, text="Browse...", command=browse,
+                      bg=ACCENT, fg=NAVY, font=("Montserrat", 9, "bold"),
+                      relief=tk.FLAT, cursor="hand2", padx=12, pady=5)
+    brbtn.pack(side=tk.LEFT)
+    brbtn.bind("<Enter>", lambda e: brbtn.config(bg="#D4932A"))
+    brbtn.bind("<Leave>", lambda e: brbtn.config(bg=ACCENT))
+
+    # ── PROJECT PARAMETERS ───────────────────────────────
+    pf = tk.LabelFrame(body, text="  Project Parameters  ",
+                       bg=BG, fg=TEAL,
+                       font=("Montserrat", 9, "bold"),
+                       bd=1, relief=tk.GROOVE, padx=10, pady=8)
+    pf.pack(fill=tk.X, pady=(0, 10))
+
+    def field(parent, lbl, default, row, col):
+        tk.Label(parent, text=lbl, bg=BG, fg="#444444",
+                 font=("Montserrat", 9), anchor='e', width=15
+                 ).grid(row=row, column=col*2, padx=(8, 4), pady=5, sticky='e')
+        e = tk.Entry(parent, width=22, font=("Montserrat", 9),
+                     bg=WHITE, relief=tk.FLAT,
+                     highlightthickness=1, highlightbackground="#CCCCCC")
+        e.insert(0, str(default))
+        e.grid(row=row, column=col*2+1, padx=(0, 12), pady=5, ipady=4)
+        return e
+
+    proj_e = field(pf, "Project Code :", "NA910",  0, 0)
+    des_e  = field(pf, "Designer :",     "Akshay", 0, 1)
+    rev_e  = field(pf, "Revision :",     "R00",    1, 0)
+    qty_e  = field(pf, "Project Qty :",  "1",      1, 1)
+
+    # ── PROGRESS ─────────────────────────────────────────
+    pgf = tk.Frame(body, bg=BG)
+    pgf.pack(fill=tk.X, pady=(4, 0))
+
+    style = ttk.Style()
+    style.theme_use('clam')
+    style.configure("BOM.Horizontal.TProgressbar",
+                    troughcolor="#D0D8E4",
+                    background=TEAL,
+                    thickness=16)
+
+    progress_bar = ttk.Progressbar(pgf, length=676, mode='determinate',
+                                   style="BOM.Horizontal.TProgressbar")
+    progress_bar.pack(pady=(6, 3))
+
+    status_lbl = tk.Label(body, text="Ready — select a file and press  ▶ START",
+                          bg=BG, fg=GREY, font=("Montserrat", 9, "italic"))
+    status_lbl.pack(pady=(2, 8))
+
+    # ── START BUTTON ─────────────────────────────────────
+    def start():
+        fp = file_entry.get().strip()
+        if not fp:
+            messagebox.showerror("Missing File", "Please select an Excel file first.")
+            return
+        if not os.path.exists(fp):
+            messagebox.showerror("File Not Found", f"File not found:\n{fp}")
+            return
+        try:
+            qty_val = float(qty_e.get())
+            if qty_val <= 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Invalid Qty", "Project Qty must be a positive number.")
+            return
+
+        progress_bar["value"] = 0
+        status_lbl.config(text="Processing …", fg=TEAL)
+        root.update()
+
+        threading.Thread(
+            target=process_file,
+            args=(fp, proj_e.get().strip(), des_e.get().strip(),
+                  rev_e.get().strip(), qty_val,
+                  progress_bar, root, status_lbl),
+            daemon=True
+        ).start()
+
+    btn_row = tk.Frame(body, bg=BG)
+    btn_row.pack(pady=4)
+
+    start_btn = tk.Button(btn_row, text="▶   START PROCESSING",
+                          command=start,
+                          bg=TEAL, fg=WHITE,
+                          font=("Montserrat", 12, "bold"),
+                          relief=tk.FLAT, cursor="hand2",
+                          padx=44, pady=11)
+    start_btn.pack()
+    start_btn.bind("<Enter>", lambda e: start_btn.config(bg=NAVY))
+    start_btn.bind("<Leave>", lambda e: start_btn.config(bg=TEAL))
+
+    # ── FOOTER ───────────────────────────────────────────
+    ftr = tk.Frame(root, bg=NAVY, height=28)
+    ftr.pack(fill=tk.X, side=tk.BOTTOM)
+    ftr.pack_propagate(False)
+    tk.Label(ftr,
+             text="Check terminal for step-by-step log  |  BOM Combined Processor v2.0  |  Developed By: Mahesh Arvind Chavan",
+             bg=NAVY, fg=GREY, font=("Montserrat", 9)
+             ).pack(pady=6)
+
+    root.mainloop()
+
+
+# =====================================================
+if __name__ == "__main__":
+    print("\n" + "="*60)
+    print("  INITIALIZING BOM COMBINED PROCESSOR  v2.0")
+    print("="*60)
+    create_gui()
+done
