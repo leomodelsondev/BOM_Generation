@@ -17,10 +17,10 @@ FONT_NORMAL = Font(name="Calibri", size=11, bold=False)
 
 # Material code in part code -> RM sheet material keyword
 MAT_MAP = {
-    'MS'  : ['HRPO', 'MS'],
+    'MS'  : ['HRPO', 'MS'],   # MS parts: try HRPO first, then MS directly
     'GI'  : ['GI'],
     'SS'  : ['SS'],
-    'ACRY': ['ACRY'],
+    'ACRY': ['ACRY', 'TRNS'], # Acrylic: also try TRNS variant
 }
 
 # Developer identity -- do not modify
@@ -90,9 +90,10 @@ def read_and_fix_hierarchy(path):
 # BE-MS-480-83-T3-8772 -> ('BE', 'MS', 3.0)
 # =====================================================
 def parse_part_code(pc):
-    code   = str(pc).strip().upper()
-    segs   = code.split('-')
-    prefix = segs[0] if segs else ''
+    # Strip revision suffix (e.g. _R01, _R02) before parsing
+    code = re.sub(r'_R\d+$', '', str(pc).strip(), flags=re.IGNORECASE).upper()
+    segs = code.split('-')
+    prefix   = segs[0] if segs else ''
     material = segs[1] if len(segs) > 1 else ''
     thickness = None
     for seg in segs:
@@ -107,7 +108,10 @@ def parse_part_code(pc):
 # VALID CHILD PART -- must end with -<2 to 7 digits>
 # =====================================================
 def is_valid_child_part(pc):
-    return bool(re.search(r'-\d{2,7}$', str(pc).strip()))
+    # Valid if ends with -<2 to 7 digits> optionally followed by _R<digits> (revision)
+    # e.g. FL-MS-T2-9767 or FL-MS-T2-9767_R01 are both valid
+    # HW1301MSG4M8, DRAWER_12INCH etc. are invalid
+    return bool(re.search(r'-\d{2,7}(_R\d+)?$', str(pc).strip(), re.IGNORECASE))
 
 
 # =====================================================
@@ -150,14 +154,19 @@ def build_rm_lookup(template_path):
         ic    = str(row['Item Code']).strip()
         iname = str(row['Item Name']).strip()
 
-        # Only sheet items for FL auto-fill
+        # Only sheet items for FL/BE auto-fill
         if '-SH-' in ic:
-            m = re.search(r'-(\d+\.?\d*)$', ic)
+            # Try T<num> pattern first (e.g. RM-SH-MS-2500X1250-T10)
+            m = re.search(r'-T(\d+\.?\d*)(?:-|$)', ic.upper())
+            if not m:
+                # Fall back to trailing number (e.g. RM-SH-HRPO-2500X1250-1.6)
+                m = re.search(r'-(\d+\.?\d*)$', ic)
             if m:
                 t = float(m.group(1))
                 parts = ic.split('-')
                 mat_kw = parts[2] if len(parts) > 2 else ''
                 fl_lookup[(mat_kw, t)] = (ic, iname)
+                print(f"    RM indexed: mat={mat_kw}  T={t}  -> {ic}")
 
         # BE dropdown: item name contains 'sheet'
         if 'sheet' in iname.lower():
