@@ -7,7 +7,7 @@ import threading
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
-TEMPLATE_PATH = r'D:\MAC Excel Code\VS Code\BOM_Generation\Template-Standard_BOM.xlsx'
+TEMPLATE_PATH = r'D:/OneDrive - Nido Machineries Pvt Ltd/Desktop/MAC/BOM Testing/Template-Standard_BOM.xlsx'
 
 FILL_GREEN  = PatternFill(start_color="92D050", end_color="92D050", fill_type="solid")
 FILL_YELLOW = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
