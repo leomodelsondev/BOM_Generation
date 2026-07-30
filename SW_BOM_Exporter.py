@@ -15,7 +15,6 @@ from datetime import datetime
 import win32com.client as win32
 import pythoncom
 
-_DEV = ''.join(['M','a','h','e','s','h',' ','A','r','v','i','n','d',' ','C','h','a','v','a','n'])
 
 SW_PART_TYPE_ASSEMBLY = 2
 
@@ -90,12 +89,70 @@ def _is_expr(val):
     return "@" in s or s.startswith("$PRP") or s.startswith("SW-")
 
 
+def _get_material_name(model):
+    """
+    Get material name from SW model using multiple methods in priority order.
+    MaterialIdName returns internal DB index for custom materials -- unreliable.
+    The correct approach is GetMaterialPropertyName2 which returns the display name.
+    Falls back through multiple APIs until a clean text name is found.
+    """
+    # Method 1: GetMaterialPropertyName2 -- returns display name e.g. "Plain Carbon Steel"
+    # This is the same value shown in the SW material dialog title
+    try:
+        cfg = model.ConfigurationManager.ActiveConfiguration.Name
+        mat = model.GetMaterialPropertyName2(cfg, None)
+        if mat and str(mat).strip() and not str(mat).strip().isdigit():
+            return str(mat).strip()
+    except:
+        pass
+
+    # Method 2: Read SW-Material via CustomPropertyManager with special blank config
+    # SW stores SW-Material as a virtual property readable this way in 2021+
+    try:
+        cpm = model.Extension.CustomPropertyManager("")
+        if cpm:
+            res = cpm.Get5("SW-Material", False, "", "", False)
+            if isinstance(res, (list, tuple)) and len(res) >= 4:
+                ve = str(res[3] or "").strip()
+                vo = str(res[2] or "").strip()
+                # Use whichever is a readable material name (not an expression, not a number)
+                for v in [ve, vo]:
+                    if v and not v.isdigit() and "@" not in v and not v.startswith("$"):
+                        return v
+    except:
+        pass
+
+    # Method 3: MaterialIdName -- split on "|" pipe to get name after library prefix
+    # e.g. "Steel|Plain Carbon Steel" -> "Plain Carbon Steel"
+    # Only use if result is not a pure number (which means it is an index)
+    try:
+        raw = str(model.MaterialIdName or "").strip()
+        if raw:
+            parts = raw.split("|")
+            mat = parts[-1].strip()   # take last segment after all pipes
+            if mat and not mat.isdigit():
+                return mat
+    except:
+        pass
+
+    # Method 4: GetModelDoc material via configuration-specific call
+    try:
+        cfg = model.ConfigurationManager.ActiveConfiguration.Name
+        mat_db = model.GetMaterialPropertyName(cfg)
+        if mat_db and str(mat_db).strip() and not str(mat_db).strip().isdigit():
+            return str(mat_db).strip()
+    except:
+        pass
+
+    return ""
+
+
 def _resolve_sys_prop(model, sw_prop):
     """Resolve SW system property names via direct API calls."""
     name = sw_prop.strip().upper()
     try:
         if "MATERIAL" in name:
-            return str(model.MaterialIdName or "").split("|")[-1].strip()
+            return _get_material_name(model)
         if "MASS" in name:
             mp = model.Extension.CreateMassProperty
             if mp:
@@ -145,10 +202,89 @@ def _clean_val(val_eval, val_out, model):
 # caches by (path::cfg). get_cp() then does zero
 # additional COM calls -- pure dict lookup.
 # =====================================================
+def _read_cpm_value(cpm, name, model):
+    """
+    Read one property value from an open CustomPropertyManager.
+    Returns clean resolved string or empty string.
+    """
+    n = str(name).strip()
+
+    # Method 1: Get5 -- (retval, type, valOut, valEval, wasResolved)
+    try:
+        res = cpm.Get5(n, False, "", "", False)
+        if isinstance(res, (list, tuple)) and len(res) >= 4:
+            ve = str(res[3] or "").strip()  # evaluated value
+            vo = str(res[2] or "").strip()  # raw/formula value
+            if ve and not _is_expr(ve):
+                return ve
+            if vo and not _is_expr(vo):
+                return vo
+            # Both are expressions -- resolve linked SW system property
+            src = ve if ve else vo
+            if _is_expr(src):
+                sw_prop = ""
+                if "@" in src:
+                    sw_prop = src.split("@")[0].strip()
+                elif "$PRP" in src.upper():
+                    m = re.search(r'"([^"]+)"', src)
+                    if m:
+                        sw_prop = m.group(1).strip()
+                if sw_prop:
+                    resolved = _resolve_sys_prop(model, sw_prop)
+                    if resolved and not _is_expr(resolved):
+                        return resolved
+    except:
+        pass
+
+    # Method 2: CustomInfo2
+    try:
+        v = str(model.CustomInfo2("", n) or "").strip()
+        if v and not _is_expr(v):
+            return v
+    except:
+        pass
+
+    # Method 3: GetCustomInfoValue
+    try:
+        v = str(model.GetCustomInfoValue("", n) or "").strip()
+        if v and not _is_expr(v):
+            return v
+    except:
+        pass
+
+    return ""
+
+
+def _get_sw_special_props(model):
+    """
+    Read SW built-in system properties that never appear in GetNames.
+    Uses _get_material_name() which tries multiple APIs to get the
+    correct display name -- avoids the MaterialIdName index number bug.
+    """
+    special = {}
+    try:
+        mat = _get_material_name(model)
+        if mat and mat.lower() not in ("", "unknown", "-", "none"):
+            special["material"] = mat
+    except:
+        pass
+    try:
+        fname = os.path.splitext(os.path.basename(model.GetPathName))[0]
+        if fname:
+            special["sw-bom part number"] = fname
+    except:
+        pass
+    return special
+
+
 def _load_props(comp):
     """
-    Read all custom properties for comp in one pass.
-    Returns dict {prop_name_lower: value}, cached.
+    Read ALL properties for a component in one batch -- 3 passes:
+    1. Config-specific custom properties via GetNames + Get5
+    2. Global custom properties via GetNames + Get5
+    3. SW special/system properties (Material from appearance, etc.)
+    Plus a targeted Pass 4 for any expected CP still blank after passes 1-3.
+    Result cached per (path::cfg).
     """
     try:
         model = comp.GetModelDoc2
@@ -168,46 +304,65 @@ def _load_props(comp):
 
         props = {}
 
-        for c in [cfg, ""]:   # config-specific first, then global
+        # Pass 1 + 2: user-defined custom properties
+        for c in [cfg, ""]:
             try:
                 cpm = model.Extension.CustomPropertyManager(c)
                 if cpm is None:
                     continue
-                names = cpm.GetNames   # ONE call to get all property names
+                names = cpm.GetNames
                 if not names:
                     continue
                 for n in names:
                     k = str(n).strip().lower()
                     if not k or k in props:
                         continue
-                    try:
-                        # ONE Get5 call per property name
-                        res = cpm.Get5(n, False, "", "", False)
-                        if isinstance(res, (list, tuple)) and len(res) >= 4:
-                            v = _clean_val(res[3], res[2], model)
-                            if v:
-                                props[k] = v
-                    except:
-                        # Fallback: CustomInfo2 for this one property
-                        try:
-                            v2 = str(model.CustomInfo2(c, n) or "").strip()
-                            if v2 and not _is_expr(v2):
-                                props[k] = v2
-                        except:
-                            pass
+                    v = _read_cpm_value(cpm, n, model)
+                    if v:
+                        props[k] = v
+                        props[str(n).strip()] = v   # original-case copy
             except:
                 continue
 
+        # Pass 3: SW special properties to fill gaps
+        for k, v in _get_sw_special_props(model).items():
+            if k not in props:
+                props[k] = v
+
+        # Pass 4: targeted direct lookup for each expected CP still missing
+        for cp_name in [CP_PART_CODE, CP_PART_NAME, CP_DESCRIPTION,
+                        CP_REVISION, CP_MATERIAL, CP_THICKNESS,
+                        CP_PROCESS, CP_PROCESS1, CP_PROCESS2,
+                        CP_REQUIRED, CP_REMARK]:
+            if cp_name.lower() in props:
+                continue
+            for c in [cfg, ""]:
+                try:
+                    cpm = model.Extension.CustomPropertyManager(c)
+                    if cpm is None:
+                        continue
+                    v = _read_cpm_value(cpm, cp_name, model)
+                    if v:
+                        props[cp_name.lower()] = v
+                        props[cp_name] = v
+                        break
+                except:
+                    continue
+
         _prop_cache[key] = props
+        mat_status = "material='" + props.get("material", "") + "'" if "material" in props else "material=BLANK"
+        print(f"    [props] {os.path.basename(path)}: {len(props)} props | {mat_status}")
         return props
     except:
         return {}
 
 
 def get_cp(comp, prop_name):
-    """Single property lookup from cached batch. Zero COM calls after first read."""
+    """Single property lookup from cached batch. Zero extra COM calls."""
     props = _load_props(comp)
-    return props.get(prop_name.lower(), "") or props.get(prop_name, "")
+    return (props.get(prop_name.lower(), "")
+            or props.get(prop_name, "")
+            or props.get(prop_name.strip(), ""))
 
 
 # =====================================================
@@ -518,6 +673,7 @@ def run_export(sldasm_path, output_dir, progress_bar, root_window, status_label)
     finally:
         pythoncom.CoUninitialize()
 
+_DEV = ''.join(['M','a','h','e','s','h',' ','A','r','v','i','n','d',' ','C','h','a','v','a','n'])
 
 # =====================================================
 # GUI

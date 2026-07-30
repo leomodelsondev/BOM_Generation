@@ -1,6 +1,309 @@
-('D:\\MAC Excel Code\\VS '
- 'Code\\BOM_Generation\\build\\SW_BOM_Exporter\\PYZ-00.pyz',
- [('__future__',
+('\\\\Nid-dsk-008\\d\\BOM_Generation\\build\\SW_BOM_Exporter\\PYZ-00.pyz',
+ [('PIL',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\__init__.py',
+   'PYMODULE'),
+  ('PIL.AvifImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\AvifImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.BlpImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\BlpImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.BmpImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\BmpImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.BufrStubImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\BufrStubImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.CurImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\CurImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.DcxImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\DcxImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.DdsImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\DdsImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.EpsImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\EpsImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.ExifTags',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ExifTags.py',
+   'PYMODULE'),
+  ('PIL.FitsImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\FitsImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.FliImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\FliImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.FpxImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\FpxImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.FtexImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\FtexImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.GbrImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\GbrImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.GifImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\GifImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.GimpGradientFile',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\GimpGradientFile.py',
+   'PYMODULE'),
+  ('PIL.GimpPaletteFile',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\GimpPaletteFile.py',
+   'PYMODULE'),
+  ('PIL.GribStubImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\GribStubImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.Hdf5StubImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\Hdf5StubImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.IcnsImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\IcnsImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.IcoImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\IcoImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.ImImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.Image',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\Image.py',
+   'PYMODULE'),
+  ('PIL.ImageChops',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageChops.py',
+   'PYMODULE'),
+  ('PIL.ImageCms',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageCms.py',
+   'PYMODULE'),
+  ('PIL.ImageColor',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageColor.py',
+   'PYMODULE'),
+  ('PIL.ImageFile',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageFile.py',
+   'PYMODULE'),
+  ('PIL.ImageFilter',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageFilter.py',
+   'PYMODULE'),
+  ('PIL.ImageMath',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageMath.py',
+   'PYMODULE'),
+  ('PIL.ImageMode',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageMode.py',
+   'PYMODULE'),
+  ('PIL.ImageOps',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageOps.py',
+   'PYMODULE'),
+  ('PIL.ImagePalette',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImagePalette.py',
+   'PYMODULE'),
+  ('PIL.ImageQt',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageQt.py',
+   'PYMODULE'),
+  ('PIL.ImageSequence',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageSequence.py',
+   'PYMODULE'),
+  ('PIL.ImageShow',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageShow.py',
+   'PYMODULE'),
+  ('PIL.ImageTk',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageTk.py',
+   'PYMODULE'),
+  ('PIL.ImageWin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImageWin.py',
+   'PYMODULE'),
+  ('PIL.ImtImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\ImtImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.IptcImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\IptcImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.Jpeg2KImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\Jpeg2KImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.JpegImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\JpegImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.JpegPresets',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\JpegPresets.py',
+   'PYMODULE'),
+  ('PIL.McIdasImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\McIdasImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.MicImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\MicImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.MpegImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\MpegImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.MpoImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\MpoImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.MspImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\MspImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PaletteFile',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\PaletteFile.py',
+   'PYMODULE'),
+  ('PIL.PalmImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\PalmImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PcdImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\PcdImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PcxImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\PcxImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PdfImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\PdfImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PdfParser',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\PdfParser.py',
+   'PYMODULE'),
+  ('PIL.PixarImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\PixarImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PngImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\PngImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PpmImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\PpmImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PsdImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\PsdImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.QoiImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\QoiImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.SgiImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\SgiImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.SpiderImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\SpiderImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.SunImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\SunImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.TgaImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\TgaImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.TiffImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\TiffImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.TiffTags',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\TiffTags.py',
+   'PYMODULE'),
+  ('PIL.WebPImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\WebPImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.WmfImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\WmfImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.XVThumbImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\XVThumbImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.XbmImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\XbmImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.XpmImagePlugin',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\XpmImagePlugin.py',
+   'PYMODULE'),
+  ('PIL._binary',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\_binary.py',
+   'PYMODULE'),
+  ('PIL._deprecate',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\_deprecate.py',
+   'PYMODULE'),
+  ('PIL._typing',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\_typing.py',
+   'PYMODULE'),
+  ('PIL._util',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\_util.py',
+   'PYMODULE'),
+  ('PIL._version',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\_version.py',
+   'PYMODULE'),
+  ('PIL.features',
+   'D:\\MAC Excel Code\\VS '
+   'Code\\BOM_Generation\\fresh_venv\\Lib\\site-packages\\PIL\\features.py',
+   'PYMODULE'),
+  ('__future__',
    'C:\\Users\\Nido\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\__future__.py',
    'PYMODULE'),
   ('_aix_support',
@@ -164,6 +467,9 @@
    'PYMODULE'),
   ('codeop',
    'C:\\Users\\Nido\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\codeop.py',
+   'PYMODULE'),
+  ('colorsys',
+   'C:\\Users\\Nido\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\colorsys.py',
    'PYMODULE'),
   ('commctrl',
    'D:\\MAC Excel Code\\VS '
